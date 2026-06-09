@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Zimmer-Editor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #1a1a1a; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    #header { background: #222; color: #fff; padding: 10px 18px; font-size: 16px; font-weight: 500; border-bottom: 1px solid #333; flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+    #header span { font-size: 13px; color: #aaa; font-weight: 400; }
+    #app { display: flex; flex: 1; overflow: hidden; }
+    #sb { width: 220px; min-width: 220px; background: #2a2a2a; border-right: 1px solid #3a3a3a; overflow-y: auto; display: flex; flex-direction: column; color: #ddd; }
+    .sec { padding: 9px 12px; border-bottom: 1px solid #3a3a3a; }
+    .sec-t { font-size: 12px; font-weight: 500; margin: 0 0 7px; color: #fff; }
+    .lbl { font-size: 11px; color: #aaa; display: block; margin-top: 4px; }
+    .ibtn { width: 100%; font-size: 12px; padding: 6px 8px; text-align: left; border-radius: 5px; border: 1px solid #444; background: #333; cursor: pointer; color: #ddd; margin-bottom: 3px; display: block; transition: background 0.1s; }
+    .ibtn:hover, .ibtn.active { background: #1a5bc4; color: #fff; border-color: #1a5bc4; }
+    .fbtn { flex: 1; min-width: 52px; font-size: 11px; padding: 4px 2px; border-radius: 4px; cursor: pointer; border: none; font-weight: 500; }
+    #cv { flex: 1; position: relative; background: #000; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #hud { position: absolute; top: 10px; left: 10px; right: 10px; pointer-events: none; display: flex; flex-direction: column; gap: 5px; }
+    #hudTop { display: flex; justify-content: space-between; gap: 6px; }
+    .hp { font-size: 11px; color: #fff; background: rgba(0,0,0,0.55); padding: 4px 9px; border-radius: 5px; }
+    .hb { background: rgba(20,70,200,0.8); }
+    #hint { font-size: 10px; color: rgba(255,255,255,0.85); background: rgba(0,0,0,0.45); padding: 3px 10px; border-radius: 5px; text-align: center; align-self: center; }
+    #cross { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; font-size: 24px; color: rgba(255,255,255,0.75); text-shadow: 0 0 4px #000; }
+    input[type=color] { width: 100%; height: 28px; border: none; border-radius: 4px; cursor: pointer; padding: 0; display: block; margin-top: 2px; }
+    input[type=range] { width: 100%; display: block; margin: 2px 0; accent-color: #4a90d9; }
+    select { width: 100%; font-size: 11px; padding: 4px; border-radius: 4px; border: 1px solid #444; background: #333; color: #ddd; }
+    .drow { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+    .dlbl { font-size: 11px; color: #aaa; width: 12px; flex-shrink: 0; }
+    .dval { font-size: 11px; color: #aaa; width: 34px; text-align: right; flex-shrink: 0; }
+    #delBtn { margin-top: 6px; width: 100%; font-size: 11px; padding: 6px; border-radius: 4px; border: 1px solid #e24b4a; color: #e24b4a; background: transparent; cursor: pointer; }
+    #delBtn:hover { background: #e24b4a22; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #222; }
+    ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  🏠 3D Zimmer-Editor
+  <span>W A S D = bewegen · Maus ziehen = umschauen · Objekt ziehen = verschieben</span>
+</div>
+
+<div id="app">
+<div id="sb">
+  <div class="sec">
+    <p class="sec-t">Raumgröße</p>
+    <span class="lbl">Breite <span id="vW">5</span>m</span>
+    <input type="range" id="roomW" min="3" max="12" step="0.5" value="5">
+    <span class="lbl">Tiefe <span id="vD">5</span>m</span>
+    <input type="range" id="roomD" min="3" max="12" step="0.5" value="5">
+    <span class="lbl">Höhe <span id="vH">2.5</span>m</span>
+    <input type="range" id="roomH" min="2" max="4" step="0.1" value="2.5">
+  </div>
+  <div class="sec">
+    <p class="sec-t">Wandfarben</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+      <div><span style="font-size:10px;color:#aaa">Nord</span><input type="color" id="wN" value="#e2d9cf"></div>
+      <div><span style="font-size:10px;color:#aaa">Süd</span><input type="color" id="wS" value="#e2d9cf"></div>
+      <div><span style="font-size:10px;color:#aaa">West</span><input type="color" id="wW" value="#d8cec3"></div>
+      <div><span style="font-size:10px;color:#aaa">Ost</span><input type="color" id="wE" value="#d8cec3"></div>
+    </div>
+  </div>
+  <div class="sec">
+    <p class="sec-t">Boden</p>
+    <div style="display:flex;flex-wrap:wrap;gap:3px">
+      <button class="fbtn" data-c="#c8a96e" style="background:#c8a96e;color:#5a3a10">Parkett</button>
+      <button class="fbtn" data-c="#b8b8b8" style="background:#b8b8b8;color:#333">Fliesen</button>
+      <button class="fbtn" data-c="#4a7c59" style="background:#4a7c59;color:#dff">Teppich</button>
+      <button class="fbtn" data-c="#7a5820" style="background:#7a5820;color:#ffe">Dkl. Holz</button>
+      <button class="fbtn" data-c="#f0ebe4" style="background:#f0ebe4;color:#555;border:1px solid #ccc">Marmor</button>
+    </div>
+  </div>
+  <div class="sec">
+    <p class="sec-t">Dachschräge</p>
+    <label style="font-size:11px;color:#aaa;cursor:pointer;display:flex;align-items:center;gap:5px">
+      <input type="checkbox" id="roofOn"> Aktivieren
+    </label>
+    <div id="roofCtrl" style="display:none;margin-top:6px">
+      <span class="lbl">Winkel: <span id="vAngle">25</span>°</span>
+      <input type="range" id="roofAngle" min="5" max="50" value="25">
+      <span class="lbl">Achse</span>
+      <select id="roofSide">
+        <option value="x">Links ↔ Rechts</option>
+        <option value="z">Vorne ↔ Hinten</option>
+      </select>
+    </div>
+  </div>
+  <div class="sec">
+    <p class="sec-t">Objekte platzieren</p>
+    <p style="font-size:10px;color:#888;margin:0 0 5px">Wählen → in den Raum klicken</p>
+    <button class="ibtn" data-type="bed">🛏 Bett</button>
+    <button class="ibtn" data-type="sofa">🛋 Sofa</button>
+    <button class="ibtn" data-type="desk">🖊 Schreibtisch</button>
+    <button class="ibtn" data-type="wardrobe">📦 Kleiderschrank</button>
+    <button class="ibtn" data-type="table">🍽 Esstisch</button>
+    <button class="ibtn" data-type="shelf">📚 Regal</button>
+    <button class="ibtn" data-type="lamp">💡 Stehlampe</button>
+    <button class="ibtn" data-type="plant">🌿 Pflanze</button>
+    <button class="ibtn" data-type="window">🪟 Fenster</button>
+    <button class="ibtn" data-type="door">🚪 Tür</button>
+    <button class="ibtn" data-type="radiator">🌡 Heizkörper</button>
+  </div>
+  <div class="sec" id="selPanel" style="display:none">
+    <p class="sec-t">✏️ <span id="selName"></span></p>
+    <span class="lbl">Farbe</span>
+    <input type="color" id="selColor">
+    <span class="lbl">Drehen: <span id="vRot">0</span>°</span>
+    <input type="range" id="selRot" min="0" max="350" step="10" value="0">
+    <span class="lbl" style="margin-top:7px;font-weight:500;color:#fff">Maße</span>
+    <div class="drow">
+      <span class="dlbl">B</span>
+      <input type="range" id="dimW" min="0.2" max="4" step="0.05" value="1" style="flex:1;margin:0">
+      <span class="dval"><span id="vDimW">1.00</span>m</span>
+    </div>
+    <div class="drow">
+      <span class="dlbl">T</span>
+      <input type="range" id="dimD" min="0.1" max="4" step="0.05" value="1" style="flex:1;margin:0">
+      <span class="dval"><span id="vDimD">1.00</span>m</span>
+    </div>
+    <div class="drow">
+      <span class="dlbl">H</span>
+      <input type="range" id="dimH" min="0.1" max="3.5" step="0.05" value="1" style="flex:1;margin:0">
+      <span class="dval"><span id="vDimH">1.00</span>m</span>
+    </div>
+    <p style="font-size:10px;color:#888;margin:5px 0 2px">🖱 Drag = verschieben · ↑↓←→ = fein</p>
+    <button id="delBtn">🗑 Löschen</button>
+  </div>
+</div>
+
+<div id="cv">
+  <canvas id="c3d"></canvas>
+  <div id="hud">
+    <div id="hudTop">
+      <div class="hp" id="hudMsg">🖱 Maus ziehen = umschauen</div>
+      <div class="hp hb" id="hudMode">Ansichtsmodus</div>
+    </div>
+    <div id="hint">W A S D = bewegen &nbsp;·&nbsp; Mausrad = Höhe &nbsp;·&nbsp; Objekt anklicken + ziehen = verschieben</div>
+  </div>
+  <div id="cross">+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  const cv = document.getElementById('c3d');
+  const wrap = document.getElementById('cv');
+
+  cv.width = wrap.clientWidth || 800;
+  cv.height = wrap.clientHeight || 600;
+
+  const renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(cv.width, cv.height, false);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0xc8bcb0, 1);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xc8bcb0);
+
+  const camera = new THREE.PerspectiveCamera(68, cv.width/cv.height, 0.05, 60);
+  camera.position.set(0, 1.65, 0);
+  camera.lookAt(0, 1.65, -1);
+
+  scene.add(new THREE.AmbientLight(0xfff8f0, 0.7));
+  const sun = new THREE.DirectionalLight(0xfff5e8, 1.0);
+  sun.position.set(3,6,4); sun.castShadow=true;
+  sun.shadow.mapSize.width=512; sun.shadow.mapSize.height=512;
+  sun.shadow.camera.near=0.5; sun.shadow.camera.far=30;
+  sun.shadow.camera.left=-8; sun.shadow.camera.right=8;
+  sun.shadow.camera.top=8; sun.shadow.camera.bottom=-8;
+  scene.add(sun);
+  const fill = new THREE.PointLight(0xffeedd,0.4,20);
+  fill.position.set(-3,2,-3); scene.add(fill);
+
+  let roomW=5, roomD=5, roomH=2.5, floorCol=0xc8a96e;
+  let roofEnabled=false, roofAngleDeg=25, roofAxis='x';
+  let activeTool=null, selectedObj=null;
+  const roomGroup=new THREE.Group(); scene.add(roomGroup);
+  const furniGroup=new THREE.Group(); scene.add(furniGroup);
+
+  function h2n(h){ return parseInt(h.replace('#',''),16); }
+
+  function buildRoom(){
+    while(roomGroup.children.length) roomGroup.remove(roomGroup.children[0]);
+    const hw=roomW/2, hd=roomD/2;
+    const wc={
+      n:h2n(document.getElementById('wN').value),
+      s:h2n(document.getElementById('wS').value),
+      w:h2n(document.getElementById('wW').value),
+      e:h2n(document.getElementById('wE').value)
+    };
+    function wall(gw,gh,col,x,y,z,rx,ry){
+      const m=new THREE.Mesh(new THREE.PlaneGeometry(gw,gh),new THREE.MeshLambertMaterial({color:col,side:THREE.DoubleSide}));
+      m.position.set(x,y,z); if(rx) m.rotation.x=rx; if(ry) m.rotation.y=ry;
+      m.receiveShadow=true; roomGroup.add(m);
+    }
+    wall(roomW,roomD,floorCol,  0,0,0,         -Math.PI/2,0);
+    wall(roomW,roomD,0xf8f4ee,  0,roomH,0,      Math.PI/2,0);
+    wall(roomW,roomH,wc.n,      0,roomH/2,-hd,  0,0);
+    wall(roomW,roomH,wc.s,      0,roomH/2,hd,   0,Math.PI);
+    wall(roomD,roomH,wc.w,     -hw,roomH/2,0,   0,Math.PI/2);
+    wall(roomD,roomH,wc.e,      hw,roomH/2,0,   0,-Math.PI/2);
+
+    if(roofEnabled){
+      const ang=roofAngleDeg*Math.PI/180;
+      const slantMat=new THREE.MeshLambertMaterial({color:0xeee8e0,side:THREE.DoubleSide});
+      if(roofAxis==='x'){
+        const rise=Math.tan(ang)*hw, sl=hw/Math.cos(ang);
+        const sg=new THREE.PlaneGeometry(sl*2,roomD);
+        const sL=new THREE.Mesh(sg,slantMat); sL.position.set(-hw/2,roomH+rise/2,0); sL.rotation.z=-ang; roomGroup.add(sL);
+        const sR=new THREE.Mesh(sg,slantMat.clone()); sR.position.set(hw/2,roomH+rise/2,0); sR.rotation.z=ang; roomGroup.add(sR);
+        [[-hd,0],[hd,Math.PI]].forEach(([pz,ry])=>{
+          const pts=[new THREE.Vector2(-hw,roomH),new THREE.Vector2(0,roomH+rise),new THREE.Vector2(hw,roomH)];
+          const g=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)),new THREE.MeshLambertMaterial({color:wc.n,side:THREE.DoubleSide}));
+          g.position.z=pz; g.rotation.y=ry; roomGroup.add(g);
+        });
+      } else {
+        const rise=Math.tan(ang)*hd, sl=hd/Math.cos(ang);
+        const sg=new THREE.PlaneGeometry(roomW,sl*2);
+        const sF=new THREE.Mesh(sg,slantMat); sF.position.set(0,roomH+rise/2,-hd/2); sF.rotation.x=ang; roomGroup.add(sF);
+        const sB=new THREE.Mesh(sg,slantMat.clone()); sB.position.set(0,roomH+rise/2,hd/2); sB.rotation.x=-ang; roomGroup.add(sB);
+        [[-hw,Math.PI/2],[hw,-Math.PI/2]].forEach(([px,ry])=>{
+          const pts=[new THREE.Vector2(-hd,roomH),new THREE.Vector2(0,roomH+rise),new THREE.Vector2(hd,roomH)];
+          const g=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)),new THREE.MeshLambertMaterial({color:wc.w,side:THREE.DoubleSide}));
+          g.position.x=px; g.rotation.y=ry; roomGroup.add(g);
+        });
+      }
+    }
+  }
+
+  const furniDefs={
+    bed:     {w:1.4,h:0.55,d:2.0, color:0x8b7355,label:'Bett'},
+    sofa:    {w:2.0,h:0.75,d:0.85,color:0x6b7fa3,label:'Sofa'},
+    desk:    {w:1.2,h:0.76,d:0.65,color:0xc4a870,label:'Schreibtisch'},
+    wardrobe:{w:1.2,h:2.0,d:0.55, color:0x9a7050,label:'Kleiderschrank'},
+    table:   {w:1.1,h:0.76,d:0.7, color:0xd4b896,label:'Esstisch'},
+    shelf:   {w:0.9,h:1.9,d:0.3,  color:0xbfa870,label:'Regal'},
+    lamp:    {w:0.2,h:1.6,d:0.2,  color:0xddcc88,label:'Stehlampe'},
+    plant:   {w:0.4,h:0.6,d:0.4,  color:0x4a8a40,label:'Pflanze'},
+    window:  {w:0.08,h:1.1,d:0.9, color:0x88ccee,label:'Fenster',transparent:true,opacity:0.4},
+    door:    {w:0.1,h:2.05,d:0.85,color:0x7a5a2a,label:'Tür'},
+    radiator:{w:0.7,h:0.55,d:0.1, color:0xd0d0d0,label:'Heizkörper'},
+  };
+
+  function rebuildMesh(grp){
+    while(grp.children.length) grp.remove(grp.children[0]);
+    const d=grp.userData;
+    const mat=new THREE.MeshLambertMaterial({color:d.color,transparent:!!d.transparent,opacity:d.opacity||1});
+    grp.userData.mainMat=mat;
+    const body=new THREE.Mesh(new THREE.BoxGeometry(d.w,d.h,d.dz),mat);
+    body.castShadow=true; body.receiveShadow=true; grp.add(body);
+    if(d.type==='lamp'){
+      const shade=new THREE.Mesh(new THREE.CylinderGeometry(d.w,d.w*0.65,d.h*0.17,8),new THREE.MeshLambertMaterial({color:0xffe8aa}));
+      shade.position.y=d.h*0.25; grp.add(shade);
+      const pl=new THREE.PointLight(0xffe080,0.8,5); pl.position.y=d.h*0.18; grp.add(pl);
+    }
+    if(d.type==='plant'){
+      const pot=new THREE.Mesh(new THREE.CylinderGeometry(d.w*0.32,d.w*0.25,d.h*0.42,8),new THREE.MeshLambertMaterial({color:0x8b5e3c}));
+      grp.add(pot);
+      const ball=new THREE.Mesh(new THREE.SphereGeometry(d.w*0.58,8,6),new THREE.MeshLambertMaterial({color:0x3a7a30}));
+      ball.position.y=d.h*0.32; grp.add(ball);
+    }
+    if(d.type==='shelf'){
+      const sm=new THREE.MeshLambertMaterial({color:0x9a7850});
+      for(let i=0;i<3;i++){
+        const s=new THREE.Mesh(new THREE.BoxGeometry(d.w*0.96,0.03,d.dz*0.94),sm);
+        s.position.y=-d.h*0.37+i*(d.h*0.34); grp.add(s);
+      }
+    }
+    if(d.type==='radiator'){
+      const rm=new THREE.MeshLambertMaterial({color:0xdadada});
+      const ribs=Math.max(2,Math.round(d.w/0.13));
+      for(let i=0;i<ribs;i++){
+        const r=new THREE.Mesh(new THREE.BoxGeometry(d.w/ribs*0.45,d.h*0.85,d.dz*0.65),rm);
+        r.position.x=-d.w/2+d.w/ribs*(i+0.5); grp.add(r);
+      }
+    }
+    if(d.type==='desk'){
+      const cm=new THREE.MeshLambertMaterial({color:0x8a6644});
+      const chair=new THREE.Mesh(new THREE.BoxGeometry(d.w*0.4,d.h*0.55,d.dz*0.7),cm);
+      chair.position.set(0,-d.h*0.22,d.dz*0.82); grp.add(chair);
+      const back=new THREE.Mesh(new THREE.BoxGeometry(d.w*0.4,d.h*0.5,0.05),cm);
+      back.position.set(0,d.h*0.05,d.dz*1.14); grp.add(back);
+    }
+  }
+
+  function makeObj(type){
+    const def=furniDefs[type];
+    const grp=new THREE.Group();
+    grp.userData={type,label:def.label,rotDeg:0,w:def.w,h:def.h,dz:def.d,color:def.color,transparent:!!def.transparent,opacity:def.opacity||1,mainMat:null};
+    rebuildMesh(grp);
+    return grp;
+  }
+
+  function selectObj(obj){
+    if(selectedObj&&selectedObj.userData.mainMat&&selectedObj.userData.mainMat.emissive)
+      selectedObj.userData.mainMat.emissive.set(0x000000);
+    selectedObj=obj;
+    if(obj){
+      if(obj.userData.mainMat&&obj.userData.mainMat.emissive) obj.userData.mainMat.emissive.set(0x1a1600);
+      const d=obj.userData;
+      document.getElementById('selPanel').style.display='block';
+      document.getElementById('selName').textContent=d.label;
+      document.getElementById('selRot').value=d.rotDeg||0;
+      document.getElementById('vRot').textContent=d.rotDeg||0;
+      if(d.mainMat) document.getElementById('selColor').value='#'+d.mainMat.color.getHexString();
+      document.getElementById('dimW').value=d.w; document.getElementById('vDimW').textContent=d.w.toFixed(2);
+      document.getElementById('dimD').value=d.dz; document.getElementById('vDimD').textContent=d.dz.toFixed(2);
+      document.getElementById('dimH').value=d.h; document.getElementById('vDimH').textContent=d.h.toFixed(2);
+    } else {
+      document.getElementById('selPanel').style.display='none';
+    }
+  }
+
+  const ray=new THREE.Raycaster();
+  function getND(e){ const r=cv.getBoundingClientRect(); return {x:((e.clientX-r.left)/r.width)*2-1,y:-((e.clientY-r.top)/r.height)*2+1}; }
+  function hitFurni(e){ const nd=getND(e); ray.setFromCamera(nd,camera); const hits=ray.intersectObjects(furniGroup.children,true); if(!hits.length) return null; let o=hits[0].object; while(o.parent&&o.parent!==furniGroup) o=o.parent; return o; }
+  function hitRoom(e){ const nd=getND(e); ray.setFromCamera(nd,camera); const hits=ray.intersectObjects(roomGroup.children,true); return hits.length?hits[0]:null; }
+  function hitFloor(e,y){ const nd=getND(e); ray.setFromCamera(nd,camera); const pl=new THREE.Plane(new THREE.Vector3(0,1,0),-y); const t=new THREE.Vector3(); return ray.ray.intersectPlane(pl,t)?t:null; }
+
+  let pStart={x:0,y:0};
+  let draggingObj=false, draggingCam=false;
+  const dragOff=new THREE.Vector3();
+
+  cv.addEventListener('pointerdown',e=>{
+    pStart={x:e.clientX,y:e.clientY};
+    if(e.button===0){
+      if(!activeTool){
+        const hit=hitFurni(e);
+        if(hit){ selectObj(hit); draggingObj=true; draggingCam=false; cv.setPointerCapture(e.pointerId); const fp=hitFloor(e,hit.position.y); if(fp) dragOff.copy(hit.position).sub(fp); return; }
+      }
+      draggingCam=true; draggingObj=false; cv.setPointerCapture(e.pointerId);
+    }
+    if(e.button===2){ draggingCam=true; cv.setPointerCapture(e.pointerId); }
+  });
+
+  cv.addEventListener('pointermove',e=>{
+    if(draggingObj&&selectedObj){
+      const fp=hitFloor(e,selectedObj.position.y);
+      if(fp){ const hw=roomW/2-0.12,hd=roomD/2-0.12; selectedObj.position.x=Math.max(-hw,Math.min(hw,fp.x+dragOff.x)); selectedObj.position.z=Math.max(-hd,Math.min(hd,fp.z+dragOff.z)); }
+    } else if(draggingCam){
+      camYaw-=e.movementX*0.0024;
+      camPitch=Math.max(-0.44,Math.min(0.54,camPitch-e.movementY*0.0024));
+    }
+  });
+
+  cv.addEventListener('pointerup',e=>{
+    const moved=Math.abs(e.clientX-pStart.x)>6||Math.abs(e.clientY-pStart.y)>6;
+    const wasDragObj=draggingObj;
+    draggingObj=false; draggingCam=false;
+    if(wasDragObj&&moved) return;
+    if(activeTool&&!moved){
+      const hit=hitRoom(e);
+      if(hit){
+        const obj=makeObj(activeTool);
+        const n=hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+        const isFloor=Math.abs(n.y)>0.8;
+        obj.position.copy(hit.point); obj.position.y=obj.userData.h/2;
+        if(!isFloor){ obj.position.addScaledVector(n,0.07); const ang=Math.atan2(n.x,n.z); obj.rotation.y=ang; obj.userData.rotDeg=Math.round(ang*180/Math.PI); }
+        const hw=roomW/2-0.12,hd=roomD/2-0.12;
+        obj.position.x=Math.max(-hw,Math.min(hw,obj.position.x));
+        obj.position.z=Math.max(-hd,Math.min(hd,obj.position.z));
+        furniGroup.add(obj); selectObj(obj);
+      }
+      document.querySelectorAll('.ibtn').forEach(b=>b.classList.remove('active'));
+      activeTool=null; document.getElementById('hudMode').textContent='Ansichtsmodus'; return;
+    }
+    if(!moved&&!activeTool) selectObj(hitFurni(e));
+  });
+
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('wheel',e=>{ camY=Math.max(0.3,Math.min(roomH-0.15,camY-e.deltaY*0.004)); e.preventDefault(); },{passive:false});
+
+  document.getElementById('selColor').addEventListener('input',e=>{ if(!selectedObj) return; const c=h2n(e.target.value); selectedObj.userData.color=c; if(selectedObj.userData.mainMat) selectedObj.userData.mainMat.color.set(c); });
+  document.getElementById('selRot').addEventListener('input',e=>{ const deg=parseInt(e.target.value); document.getElementById('vRot').textContent=deg; if(selectedObj){selectedObj.userData.rotDeg=deg;selectedObj.rotation.y=deg*Math.PI/180;} });
+  function hookDim(id,prop,vId){
+    document.getElementById(id).addEventListener('input',e=>{
+      const v=parseFloat(e.target.value); document.getElementById(vId).textContent=v.toFixed(2);
+      if(!selectedObj) return; selectedObj.userData[prop]=v; rebuildMesh(selectedObj); selectedObj.position.y=selectedObj.userData.h/2;
+      if(selectedObj.userData.mainMat&&selectedObj.userData.mainMat.emissive) selectedObj.userData.mainMat.emissive.set(0x1a1600);
+    });
+  }
+  hookDim('dimW','w','vDimW'); hookDim('dimD','dz','vDimD'); hookDim('dimH','h','vDimH');
+  document.getElementById('delBtn').addEventListener('click',()=>{ if(selectedObj){furniGroup.remove(selectedObj);selectObj(null);} });
+  document.querySelectorAll('.ibtn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      activeTool=btn.dataset.type;
+      document.querySelectorAll('.ibtn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('hudMode').textContent='Platziermodus: '+furniDefs[activeTool].label;
+      selectObj(null);
+    });
+  });
+  document.querySelectorAll('.fbtn').forEach(btn=>{ btn.addEventListener('click',()=>{ floorCol=h2n(btn.dataset.c); buildRoom(); }); });
+  ['wN','wS','wW','wE'].forEach(id=>document.getElementById(id).addEventListener('input',buildRoom));
+  document.getElementById('roofOn').addEventListener('change',e=>{ roofEnabled=e.target.checked; document.getElementById('roofCtrl').style.display=roofEnabled?'block':'none'; buildRoom(); });
+  document.getElementById('roofAngle').addEventListener('input',e=>{ roofAngleDeg=parseInt(e.target.value); document.getElementById('vAngle').textContent=roofAngleDeg; buildRoom(); });
+  document.getElementById('roofSide').addEventListener('change',e=>{ roofAxis=e.target.value; buildRoom(); });
+  ['roomW','roomD','roomH'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',e=>{
+      const v=parseFloat(e.target.value);
+      if(id==='roomW') roomW=v; if(id==='roomD') roomD=v; if(id==='roomH') roomH=v;
+      document.getElementById('v'+id[4].toUpperCase()).textContent=v; buildRoom();
+    });
+  });
+
+  let camYaw=0, camPitch=0.15, camX=0, camY=1.65, camZ=0;
+  const keys={};
+  document.addEventListener('keydown',e=>{
+    keys[e.key]=true;
+    if(selectedObj&&!draggingObj){
+      const step=0.05,hw=roomW/2-0.12,hd=roomD/2-0.12;
+      if(e.key==='ArrowLeft')  selectedObj.position.x=Math.max(-hw,selectedObj.position.x-step);
+      if(e.key==='ArrowRight') selectedObj.position.x=Math.min(hw,selectedObj.position.x+step);
+      if(e.key==='ArrowUp')    selectedObj.position.z=Math.max(-hd,selectedObj.position.z-step);
+      if(e.key==='ArrowDown')  selectedObj.position.z=Math.min(hd,selectedObj.position.z+step);
+    }
+  });
+  document.addEventListener('keyup',e=>{ keys[e.key]=false; });
+
+  function updateCam(){
+    if(!draggingObj){
+      const spd=0.04,hw=roomW/2-0.22,hd=roomD/2-0.22;
+      const fx=Math.sin(camYaw),fz=Math.cos(camYaw);
+      const rx=Math.sin(camYaw-Math.PI/2),rz=Math.cos(camYaw-Math.PI/2);
+      if(keys['w']||keys['W']){camX-=fx*spd;camZ-=fz*spd;}
+      if(keys['s']||keys['S']){camX+=fx*spd;camZ+=fz*spd;}
+      if(keys['a']||keys['A']){camX+=rx*spd;camZ+=rz*spd;}
+      if(keys['d']||keys['D']){camX-=rx*spd;camZ-=rz*spd;}
+      camX=Math.max(-hw,Math.min(hw,camX));
+      camZ=Math.max(-hd,Math.min(hd,camZ));
+    }
+    camera.position.set(camX,camY,camZ);
+    const dx=Math.sin(camYaw)*Math.cos(camPitch),dy=Math.sin(camPitch),dz=Math.cos(camYaw)*Math.cos(camPitch);
+    camera.lookAt(camX+dx*10,camY+dy*10,camZ+dz*10);
+  }
+
+  function resize(){
+    const w=wrap.clientWidth,h=wrap.clientHeight;
+    if(w<1||h<1) return;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(wrap);
+  setTimeout(resize,50);
+  buildRoom();
+  function animate(){ requestAnimationFrame(animate); updateCam(); renderer.render(scene,camera); }
+  animate();
+})();
+</script>
+</body>
+</html>
